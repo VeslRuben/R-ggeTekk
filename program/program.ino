@@ -9,11 +9,18 @@ const int SENSOR_MIN = 140;
 
 const int P_LEDD = 50;
 
-int setPoint = 0;
+int setPoint = 25;
 float actualPosition = 0;
 float positionChange = 0;
 
-boolean debug = true;
+float error = 0;
+float oldError = 0;
+float diffError = 0;
+
+const int Kp = 5;
+const int Kd = 10;
+
+boolean debug = false;
 
 void setup() {
   servo1.attach(SERVO_PIN);       // attaches the servo on pin 3 to the servo object
@@ -27,18 +34,13 @@ void loop() {
       setPoint = Serial.parseInt();
       Serial.println(setPoint);
       }
-      float actualPosition = getPos();
+      actualPosition = readBallPosition();
       positionChange = regulatePosition(actualPosition, setPoint);
       //overføre verdiene til utgangsverdi før di blir skrever til sevoen
-      servoPosition = positionChange + 73; // 73 er 0punget til servoen
+      float servoPosition = (positionChange * -1) + 73; // 73 er 0-punktet til servoen
       writeServoPosition(positionChange);
     } else {
-      for(int i = 0; i < 10; i++) {
-        actualPosition = actualPosition + analogRead(SENSOR_PIN);
-        delay(10);
-      }
-      actualPosition = actualPosition / 10;
-      Serial.println(actualPosition);
+      actualPosition = readBallPosition();
     }
   }
 
@@ -47,44 +49,41 @@ void writeServoPosition(float servoPosition) {
   servo1.write(servoPosition);
 }
 
-float readBallPosition() {
-  float sensorCm = 0;
-  float sensorRealValue = 0;
-  sensorRealValue = analogRead(SENSOR_PIN);
-  if (sensorRealValue >= 390) {
-      //Lineær fra 0 - 5cm
-      sensorCm = (594 - sensorRealValue) / 40.8;
-  } else if (280 <= sensorRealValue && sensorRealValue < 390) {
-      //Lineær fra 5 - 10cm
-      sensorCm = ((390 - sensorRealValue) / 22) + 5;
-  } else if (193 <= sensorRealValue && sensorRealValue < 280) {
-      //Lineær fra 10 - 20cm
-      sensorCm = ((280 - sensorRealValue) / 8.7) + 10;
-  } else if (153 <= sensorRealValue && sensorRealValue < 193) {
-      //Lineær fra 20 - 30cm
-      sensorCm = ((193 - sensorRealValue) / 4) + 20;
-  } else if (125 <= sensorRealValue && sensorRealValue < 153) {
-      //Lineær fra 30 - 45cm
-      sensorCm = ((153 - sensorRealValue) / 2) + 30;
+long readBallPosition() {
+  long sensorCm = 0;
+  long x = 0;
+  x = getMeanPos();
+  if(253 <= x) {
+    sensorCm = ((-3*pow(10,-7))*x*x*x) + (0.0004*x*x) + (-0.2531*x) + 55.596;
+  } else if ( x < 253) {
+    sensorCm = (0.002*x*x) + (-0.9863*x) + 141.08;
+  } else {
+    sensorCm = 0;
   }
   Serial.print("Real: ");
-  Serial.print(sensorRealValue);
+  Serial.print(x);
   Serial.print(" Jalla: ");
   Serial.println(sensorCm);
   return sensorCm;
 }
 
-float regulatePosition(float actualPosition, int setPoint) {
-  float error = setPoint - actualPosition;
-  int p_constant = 5;
-  error = error * p_constant;
-  return error;
+float regulatePosition(float actualPos, int wantedPos) {
+  oldError = error;
+  error = wantedPos - actualPos;
+  Serial.print("Error: ");
+  Serial.println(error);
+  diffError =  error - oldError;
+  Serial.print("Diff error: ");
+  Serial.println(diffError);
+  float u = (Kp * error) + (Kd * diffError);
+  return u;
 }
 
-float getPos() {
-  float actualPosition;
+long getMeanPos() {
+  long tempActualPosition = 0;
   for(int i = 0; i < 10; i++) {
-    actualPosition = actualPosition + readBallPosition();
+    tempActualPosition = tempActualPosition + analogRead(SENSOR_PIN);
+    delay(10);
   }
-  return actualPosition = actualPosition / 10;
+  return tempActualPosition = tempActualPosition / 10;
 }
