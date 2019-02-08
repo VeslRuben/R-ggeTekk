@@ -27,11 +27,10 @@ void loop() {
       setPoint = Serial.parseInt();
       Serial.println(setPoint);
       }
-      for(int i = 0; i < 10; i++) {
-        actualPosition = actualPosition + readBallPosition();
-      }
-      float actualPosition = actualPosition / 10;
+      float actualPosition = getPos();
       positionChange = regulatePosition(actualPosition, setPoint);
+      //overføre verdiene til utgangsverdi før di blir skrever til sevoen
+      servoPosition = positionChange + 73; // 73 er 0punget til servoen
       writeServoPosition(positionChange);
     } else {
       for(int i = 0; i < 10; i++) {
@@ -44,7 +43,6 @@ void loop() {
   }
 
 void writeServoPosition(float servoPosition) {
-  servoPosition = servoPosition + 73;
   servoPosition = constrain(servoPosition, 6, 140);
   servo1.write(servoPosition);
 }
@@ -81,4 +79,12 @@ float regulatePosition(float actualPosition, int setPoint) {
   int p_constant = 5;
   error = error * p_constant;
   return error;
+}
+
+float getPos() {
+  float actualPosition;
+  for(int i = 0; i < 10; i++) {
+    actualPosition = actualPosition + readBallPosition();
+  }
+  return actualPosition = actualPosition / 10;
 }
