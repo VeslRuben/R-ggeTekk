@@ -2,16 +2,17 @@
 
 Servo servo1;                     // create servo object to control a servo
 
-const int SERVO_PIN = 3;
-const int SENSOR_PIN = A0;
+const int SERVO_PIN = 5;
+const int SENSOR_PIN = A5;
 const int SENSOR_MAX = 600;
 const int SENSOR_MIN = 140;
 
-const int P_LEDD = 50;
-
 int setPoint = 25;
-float actualPosition = 0;
-float positionChange = 0;
+float distanceArray[10];
+int currentIndex = 0;
+unsigned long regulatorTimer = 0;
+
+int loopTime = 100;
 
 float error = 0;
 float oldError = 0;
@@ -25,7 +26,9 @@ boolean debug = false;
 void setup() {
   servo1.attach(SERVO_PIN);       // attaches the servo on pin 3 to the servo object
   writeServoPosition(73);         // Servo goes to zero degrees
-  Serial.begin(9600);
+  Serial.begin(250000);
+  regulatorTimer = millis() + loopTime;
+  
 }
 
 void loop() {
@@ -34,13 +37,35 @@ void loop() {
       setPoint = Serial.parseInt();
       Serial.println(setPoint);
       }
-      actualPosition = readBallPosition();
-      positionChange = regulatePosition(actualPosition, setPoint);
-      //overføre verdiene til utgangsverdi før di blir skrever til sevoen
-      float servoPosition = (positionChange * -1) + 73; // 73 er 0-punktet til servoen
-      writeServoPosition(positionChange);
+      distanceArray[currentIndex] = getMeanPos();
+      currentIndex++;
+      if(9 < currentIndex) {
+        currentIndex = 0;
+      }
+      if(millis() > regulatorTimer) {
+        int tempMax = distanceArray[0];
+        int tempMin = distanceArray[0];
+        unsigned long meanDistance = 0;
+        for(int i = 1; i < 10; i++) {
+          if(distanceArray[i] > tempMax) {
+            tempMax = distanceArray[i];
+          }
+          if(distanceArray[i] < tempMin) {
+            tempMin = distanceArray[i];
+          }
+          meanDistance = meanDistance + distanceArray[i];
+          
+        }
+        Serial.println("Test");
+        meanDistance = (meanDistance - tempMax - tempMin) / 8;
+        float ballPosition = readBallPosition(meanDistance);
+        float positionChange = regulatePosition(ballPosition, setPoint);
+        float servoPosition = (positionChange * -1) + 73; // 73 er 0-punktet til servoen
+        writeServoPosition(positionChange);
+        regulatorTimer = millis() + loopTime;
+      }
     } else {
-      actualPosition = readBallPosition();
+      //actualPosition = readBallPosition();
     }
   }
 
@@ -49,14 +74,13 @@ void writeServoPosition(float servoPosition) {
   servo1.write(servoPosition);
 }
 
-long readBallPosition() {
-  long sensorCm = 0;
-  long x = 0;
-  x = getMeanPos();
-  if(253 <= x) {
-    sensorCm = ((-3*pow(10,-7))*x*x*x) + (0.0004*x*x) + (-0.2531*x) + 55.596;
-  } else if ( x < 253) {
-    sensorCm = (0.002*x*x) + (-0.9863*x) + 141.08;
+unsigned long readBallPosition(unsigned long meanDistance) {
+  unsigned long sensorCm = 0;
+  unsigned long x = meanDistance;
+  if(263 <= x) {
+    sensorCm = ((9.3482*pow(10,-5))*x*x) + (-0.1175*x) + 38.2;
+  } else if (263 > x) {
+    sensorCm = (0.0015*x*x) + (-0.8275*x) + 126,75;
   } else {
     sensorCm = 0;
   }
@@ -80,10 +104,25 @@ float regulatePosition(float actualPos, int wantedPos) {
 }
 
 long getMeanPos() {
-  long tempActualPosition = 0;
+  int tempActualPosition[10];
   for(int i = 0; i < 10; i++) {
-    tempActualPosition = tempActualPosition + analogRead(SENSOR_PIN);
-    delay(10);
+    tempActualPosition[i] = analogRead(SENSOR_PIN);
   }
-  return tempActualPosition = tempActualPosition / 10;
+  int tempIndexMax = tempActualPosition[0];
+  int tempIndexMin = tempActualPosition[0];
+  for(int i = 1; i < 10; i++) {
+    if(tempActualPosition[i] > tempIndexMax) {
+      tempIndexMax = i;
+    }
+    if(tempActualPosition[i] < tempIndexMin) {
+      tempIndexMin = i;
+    }
+  }
+  tempActualPosition[tempIndexMax] = 0;
+  tempActualPosition[tempIndexMin] = 0;
+  float tempMeanPosition = 0;
+  for(int i = 0; i < 10; i++) {
+    tempMeanPosition = tempMeanPosition + tempActualPosition[i];
+  }
+  return tempMeanPosition / 8;
 }
