@@ -3,12 +3,12 @@
 Servo servo1;     //Create servo object to control a servo
 
 const int SERVO_PIN = 9;
-const int SENSOR_PIN = A5;
+const int SENSOR_PIN = A0;
 
 //Global variables necessary for regulator
 int setPoint = 25;    //Set point for regulator to work towards
-const int Kp = 5;     //Proportional part for the regulator
-const int Kd = 10;    //Differential part for the regulator
+const float Kp = 3.5;     //Proportional part for the regulator
+const float Kd = 10.5;     //Differential part for the regulator
 float error = 0;      //Current error
 float oldError = 0;   //Last error
 float diffError = 0;  //Difference between current and last error
@@ -23,7 +23,7 @@ int currentIndex = 0;
 
 void setup() {
   servo1.attach(SERVO_PIN);                 // Attaches servo to pin 9 to the servo-object.
-  Serial.begin(9600);
+  Serial.begin(2000000);
   writeServoPosition(73);
   regulatorTimer = millis() + loopTime;     //Sets the first timer for the regulator-loop
 }
@@ -44,7 +44,7 @@ void loop() {
   }
   
   //Check if timer for regulating position is ready
-  if(millis() < regulatorTimer) {
+  if(millis() > regulatorTimer) {
     int tempMaxValue = distanceArray[0];
     int tempMinValue = distanceArray[0];
     unsigned long meanDistance = 0;
@@ -62,7 +62,6 @@ void loop() {
     //Set up values for how much to change the servo-position
     float ballPosition = convertDistanceValue(meanDistance);
     float positionChange = positionRegulator(ballPosition, setPoint);
-    float servoPosition = (positionChange * -1) + 73;                 //Change polarity of position change (for getting right direction), add 73 for zero-point
     writeServoPosition(positionChange);                               //Sends position to function to change position
     regulatorTimer = millis() + loopTime;                             //Starts new timer
   }
@@ -72,6 +71,9 @@ void loop() {
  * Changes the position of the servo
  */
 void writeServoPosition(float servoPosition) {
+  servoPosition = servoPosition + 73; //Added zero-point to the change of position
+//  Serial.print("Servoposition: ");
+//  Serial.println(servoPosition);
   servoPosition = constrain(servoPosition, 6, 140);
   servo1.write(servoPosition);
 }
@@ -85,10 +87,15 @@ float positionRegulator(float actualPos, int wantedPos) {
   oldError = error;
   error = wantedPos - actualPos;
   diffError = error - oldError;
-  Serial.print("Error: ");
-  Serial.print(error);
-  Serial.print(" Diff-error: ");
-  Serial.println(diffError);
+  if(1 > diffError && -1 < diffError) {
+    diffError = 0;
+  } else {
+    diffError = diffError;
+  }
+//  Serial.print("Error: ");
+//  Serial.print(error);
+//  Serial.print(" Diff-error: ");
+//  Serial.println(diffError);
   float u = (Kp * error) + (Kd * diffError);
   return u;
 }
@@ -97,23 +104,23 @@ float positionRegulator(float actualPos, int wantedPos) {
 /**
  * Convert raw value to distance in centimeters
  */
-long convertDistanceValue(long inputDistance) {
-  unsigned long sensorCm = 0;
+float convertDistanceValue(long inputDistance) {
+  float sensorCm = 0;
   unsigned long x = inputDistance;
 
-  if(263 <= x) {
-    sensorCm = ((9.3482*pow(10,-5))*x*x) + (-0.1175*x) + 38.2;
-  } else if (263 > x) {
-    sensorCm = (0.0015*x*x) + (-0.8275*x) + 126.75;
+  if(205 <= x) {
+    sensorCm = (-6.8890*pow(10,-7)*x*x*x) + (8.8527*pow(10,-4)*x*x) + (-0.3996*x) + 65.34;
+  } else if (205 > x) {
+    sensorCm = (-2.6659*pow(10,-5)*x*x*x) + (0.019*x*x) + (-4.5243*x) + 372.05;
   } else {
     sensorCm = 0;
   }
 
   //Print all information for debug purposes
-  Serial.print("Real Value: ");
-  Serial.print(x);
-  Serial.print(" Converted: ");
-  Serial.println(sensorCm);
+//  Serial.print("Real Value: ");
+//  Serial.print(x);
+//  Serial.print(" Converted: ");
+//  Serial.println(sensorCm);
   return sensorCm;
 }
 
