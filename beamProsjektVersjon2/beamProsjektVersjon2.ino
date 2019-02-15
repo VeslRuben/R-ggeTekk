@@ -6,12 +6,14 @@ const int SERVO_PIN = 9;
 const int SENSOR_PIN = A0;
 
 //Global variables necessary for regulator
-int setPoint = 25;    //Set point for regulator to work towards
-const float Kp = 3.5;     //Proportional part for the regulator
-const float Kd = 10.5;     //Differential part for the regulator
-float error = 0;      //Current error
-float oldError = 0;   //Last error
-float diffError = 0;  //Difference between current and last error
+int setPoint = 25;        //Set point for regulator to work towards
+const float Kp = 3.478;    //Proportional part for the regulator
+const float Kd = 24.786;    //Differential part for the regulator
+const float Ki = 0;    //Integral part for the controller
+float error = 0;          //Current error
+float oldError = 0;       //Last error
+float diffError = 0;      //Difference between current and last error
+float intError = 0;       //Accumulating the errors
 
 //Loop variables
 unsigned long regulatorTimer = 0;   //Regulator timer
@@ -23,9 +25,9 @@ int currentIndex = 0;
 
 void setup() {
   servo1.attach(SERVO_PIN);                 // Attaches servo to pin 9 to the servo-object.
-  Serial.begin(2000000);
-  writeServoPosition(73);
-  regulatorTimer = millis() + loopTime;     //Sets the first timer for the regulator-loop
+  Serial.begin(2000000);                    // Starts the serial monitor
+  writeServoPosition(73);                   // Sets the servo to zero degrees as a starting point
+  regulatorTimer = millis() + loopTime;     // Sets the first timer for the regulator-loop
 }
 
 void loop() {
@@ -87,16 +89,21 @@ float positionRegulator(float actualPos, int wantedPos) {
   oldError = error;
   error = wantedPos - actualPos;
   diffError = error - oldError;
+  if(5 > error && -5 < error) {
+    intError = intError + error;
+  }
   if(1 > diffError && -1 < diffError) {
     diffError = 0;
   } else {
     diffError = diffError;
   }
 //  Serial.print("Error: ");
-//  Serial.print(error);
+//  Serial.println(error);
 //  Serial.print(" Diff-error: ");
 //  Serial.println(diffError);
-  float u = (Kp * error) + (Kd * diffError);
+//    Serial.print("Int. error: ");
+//    Serial.println(intError);
+  float u = (Kp * error) + (Kd * diffError) + (Ki * intError);
   return u;
 }
 
